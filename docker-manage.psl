@@ -1,0 +1,39 @@
+# docker-manage.ps1
+Write-Host "Building App Container" -ForegroundColor Cyan
+docker build -t travelsaveapi .
+
+Write-Host "Creating network bridge (or using existing one)" -ForegroundColor Cyan
+docker network create travelsavenetwork 2>$null
+
+Write-Host "Removing old PostgreSQL container if it exists" -ForegroundColor Cyan
+docker rm -f TravelSaveDb 2>$null
+
+Write-Host "Running POSTGRESQL" -ForegroundColor Cyan
+docker run -d `
+  --name TravelSaveDb `
+  --network travelsavenetwork `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_PASSWORD=1234 `
+  -e POSTGRES_DB=TravelSaveDb `
+  -v pgdata:/var/lib/postgresql/data `
+  -p 5432:5432 `
+  postgres:15
+
+Write-Host "Waiting for Database to be ready..." -ForegroundColor Cyan
+Start-Sleep -Seconds 5
+
+Write-Host "Removing old API container if it exists" -ForegroundColor Cyan
+docker rm -f TravelSaveApi 2>$null
+
+Write-Host "Running TravelSave API" -ForegroundColor Cyan
+docker run -d `
+  --name TravelSaveApi `
+  --network travelsavenetwork `
+  -p 5000:8080 `
+  -e ASPNETCORE_ENVIRONMENT=Development `
+  -e "ConnectionStrings__DefaultConnection=Host=TravelSaveDb;Port=5432;Database=TravelSaveDb;Username=postgres;Password=1234" `
+  travelsaveapi
+
+Write-Host "✅ Both containers are running." -ForegroundColor Green
+Write-Host "Access the API at: http://localhost:5000" -ForegroundColor Yellow
+Write-Host "Swagger UI: http://localhost:5000/swagger" -ForegroundColor Yellow
